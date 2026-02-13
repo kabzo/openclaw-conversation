@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.components import conversation
+from homeassistant.components.conversation import async_set_agent, async_unset_agent
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 
@@ -26,12 +25,12 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up OpenClaw Conversation from a config entry."""
     agent = OpenClawConversationAgent(hass, entry)
-    conversation.async_set_agent(hass, entry, agent)
+    async_set_agent(hass, entry, agent)
     _LOGGER.info("OpenClaw Conversation agent registered")
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload OpenClaw Conversation."""
-    conversation.async_unset_agent(hass, entry)
+    async_unset_agent(hass, entry)
     return True
