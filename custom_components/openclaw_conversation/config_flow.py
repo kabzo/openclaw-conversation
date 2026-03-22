@@ -12,6 +12,7 @@ from .const import (
     CONF_API_KEY,
     CONF_BASE_URL,
     CONF_MODEL,
+    CONF_SYSTEM_PROMPT,
     CONF_TIMEOUT,
     DEFAULT_BASE_URL,
     DEFAULT_MODEL,
@@ -76,6 +77,9 @@ class OpenClawConversationConfigFlow(
                         CONF_TIMEOUT: user_input.get(
                             CONF_TIMEOUT, DEFAULT_TIMEOUT
                         ),
+                        CONF_SYSTEM_PROMPT: user_input.get(
+                            CONF_SYSTEM_PROMPT, ""
+                        ),
                     },
                 )
 
@@ -96,6 +100,9 @@ class OpenClawConversationConfigFlow(
                     vol.Optional(
                         CONF_TIMEOUT, default=DEFAULT_TIMEOUT
                     ): vol.Coerce(int),
+                    vol.Optional(
+                        CONF_SYSTEM_PROMPT, default=""
+                    ): str,
                 }
             ),
             errors=errors,

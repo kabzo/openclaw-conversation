@@ -6,6 +6,7 @@ CONF_BASE_URL = "base_url"
 CONF_API_KEY = "api_key"
 CONF_MODEL = "model"
 CONF_TIMEOUT = "timeout"
+CONF_SYSTEM_PROMPT = "system_prompt"
 
 DEFAULT_MODEL = "openclaw"
 DEFAULT_TIMEOUT = 30

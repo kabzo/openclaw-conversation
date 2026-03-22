@@ -9,7 +9,8 @@
           "base_url": "OpenClaw Gateway URL",
           "api_key": "API Token",
           "model": "Model",
-          "timeout": "Timeout (seconds)"
+          "timeout": "Timeout (seconds)",
+          "system_prompt": "System Prompt (optional)"
         }
       }
     },
