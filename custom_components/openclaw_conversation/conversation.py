@@ -126,27 +126,52 @@ class OpenClawConversationEntity(
         except conversation.ConverseError as err:
             return err.as_conversation_result()
 
-        await self._async_handle_chat_log(chat_log)
+        user_id = user_input.context.user_id or "default"
+        await self._async_handle_chat_log(chat_log, user_id=user_id)
 
         return conversation.async_get_result_from_chat_log(user_input, chat_log)
 
     async def _async_handle_chat_log(
         self,
         chat_log: conversation.ChatLog,
+        *,
+        user_id: str = "default",
     ) -> None:
         """Generate an answer for the chat log via streaming."""
         options = self.entry.data
         base_url: str = options[CONF_BASE_URL]
         api_key: str = options[CONF_API_KEY]
         model: str = options.get(CONF_MODEL, DEFAULT_MODEL)
-        timeout_seconds: int = options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
+        timeout_seconds: int = max(
+            options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT), DEFAULT_TIMEOUT
+        )
 
-        messages = _convert_chat_log_to_messages(chat_log.content)
-        _LOGGER.debug("Chat log content roles: %s", [c.role for c in chat_log.content])
+        stable_user = f"homeassistant:{user_id}"
+        is_followup = any(c.role == "assistant" for c in chat_log.content)
+
+        if is_followup:
+            last_user = next(
+                c for c in reversed(chat_log.content) if c.role == "user"
+            )
+            messages = [{"role": "user", "content": last_user.content}]
+        else:
+            messages = _convert_chat_log_to_messages(chat_log.content)
+
+        _LOGGER.debug(
+            "user=%s is_followup=%s roles=%s",
+            stable_user,
+            is_followup,
+            [c.role for c in chat_log.content],
+        )
         _LOGGER.debug("Messages to API: %s", messages)
 
         delta_stream = _stream_api(
-            base_url, api_key, model, messages, timeout_seconds
+            base_url,
+            api_key,
+            model,
+            messages,
+            timeout_seconds,
+            user=stable_user,
         )
 
         async for _content in chat_log.async_add_delta_content_stream(
@@ -294,18 +319,11 @@ class OpenClawConversationEntity(
 def _convert_chat_log_to_messages(
     content_list: list[conversation.Content],
 ) -> list[dict[str, Any]]:
-    """Convert ChatLog content to OpenAI Chat Completions messages format."""
+    """Convert the full ChatLog into OpenAI-style messages for the API."""
     messages: list[dict[str, Any]] = []
     for content in content_list:
-        if content.role == "system":
-            messages.append({"role": "system", "content": content.content})
-        elif content.role == "user":
-            messages.append({"role": "user", "content": content.content})
-        elif content.role == "assistant":
-            if content.content:
-                messages.append(
-                    {"role": "assistant", "content": content.content}
-                )
+        if content.role in ("system", "user", "assistant"):
+            messages.append({"role": content.role, "content": content.content})
     return messages
 
 
@@ -315,9 +333,11 @@ async def _stream_api(
     model: str,
     messages: list[dict[str, Any]],
     timeout_seconds: int,
+    *,
+    user: str | None = None,
 ) -> AsyncIterable[dict[str, Any]]:
     """Stream OpenClaw chat completions API via SSE."""
-    headers = {
+    headers: dict[str, str] = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
@@ -327,8 +347,14 @@ async def _stream_api(
         "messages": messages,
         "stream": True,
     }
+    if user is not None:
+        payload["user"] = user
 
-    timeout = aiohttp.ClientTimeout(total=timeout_seconds)
+    timeout = aiohttp.ClientTimeout(
+        total=None,
+        sock_connect=timeout_seconds,
+        sock_read=timeout_seconds,
+    )
 
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.post(
